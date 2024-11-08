@@ -70,7 +70,7 @@ async def process_sensor(msg: aiomqtt.Message):
     global sensors
 
     # topic = msg.topic
-    payload = msg.payload
+    payload = msg.payload.decode()
     logger.info(f"received {payload}")
 
     measurement, tags, fields, timestamp = parse_influxdb_line_protocol(payload)
