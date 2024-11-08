@@ -63,9 +63,9 @@ def send_telegram_message(message):
 def on_message(client, userdata, msg):
     global sensors
 
-    topic = msg.topic
+    # topic = msg.topic
     payload = msg.payload.decode()
-    logger.info(f"Received message: {payload}")
+    logger.info(f"received {payload}")
 
     measurement, tags, fields, timestamp = parse_influxdb_line_protocol(payload)
     if measurement is None or "location" not in tags:
@@ -77,9 +77,16 @@ def on_message(client, userdata, msg):
     if sensor_location not in sensors:
         sensors[sensor_location] = {
             "last_heartbeat": time.time(),
-            "last_state": fields.get("state", 0),
+            "last_state": int(fields.get("state", 0)),
             "heartbeat_lost": False,
         }
+        sensor_data = sensors[sensor_location]
+        logger.info(
+            f"new sensor {sensor_location} with state {sensor_data['last_state']}"
+        )
+        send_telegram_message(
+            f"New sensor {sensor_location} with state {sensor_data['last_state']}"
+        )
 
     sensor_data = sensors[sensor_location]
 
@@ -108,10 +115,11 @@ def on_message(client, userdata, msg):
 
 def main():
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s ; %(message)s",
+        level=logging.WARNING,
+        format="%(asctime)s; %(name)s; %(levelname)s; %(message)s",
         datefmt="%Y-%m-%dT%H:%M:%S%z",
     )
+    logger.setLevel(logging.INFO)
     logger.info(f"starting mqtt-telegram on {TOPIC}")
     # MQTT Connection Setup
     client = mqtt.Client()
