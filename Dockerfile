@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY pyproject.toml poetry.lock* /app/
 
-RUN pip install poetry && poetry install --no-root --without dev
+RUN pip install poetry && poetry install --without dev
 COPY . /app
 
 
