@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "mqtt-telegram"
+version = "0.1.0"
+description = ""
+authors = ["Hugo Caron <hca443@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+paho-mqtt = "^2.1.0"
+requests = "^2.32.3"
+python-dotenv = "^1.0.1"
+apprise = "^1.9.0"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.7.3"
+ruff-lsp = "^0.0.58"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+lint.extend-select = ["I"]
+
+[tool.poetry.scripts]
+mqtt-telegram = "mqtt_telegram.main:main"
