@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "mqtt-telegram"
+name = "mqtt-notif"
 version = "0.1.0"
 description = ""
 authors = ["Hugo Caron <hca443@gmail.com>"]
@@ -26,4 +26,4 @@ indent-width = 4
 lint.extend-select = ["I"]
 
 [tool.poetry.scripts]
-mqtt-telegram = "mqtt_telegram.main:main"
+mqtt-notif = "mqtt_notif.main:main"
