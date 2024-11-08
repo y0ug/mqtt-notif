@@ -5,10 +5,14 @@ import os
 import re
 import ssl
 import time
+import importlib.metadata
 
 import aiomqtt
 import apprise
 from dotenv import load_dotenv
+
+version = importlib.metadata.version("mqtt-notif")
+
 
 load_dotenv()
 
@@ -145,7 +149,7 @@ async def main_async():
         datefmt="%Y-%m-%dT%H:%M:%S%z",
     )
     logger.setLevel(logging.INFO)
-    logger.info(f"starting mqtt-telegram on {TOPIC}")
+    logger.info(f"starting mqtt-telegram v{version} on {TOPIC}")
 
     asyncio.create_task(check_heartbeat())
 
