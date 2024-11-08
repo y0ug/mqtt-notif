@@ -1,11 +1,13 @@
+import asyncio
 import datetime
 import logging
 import os
 import re
+import ssl
 import time
 
+import aiomqtt
 import apprise
-import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,8 +21,8 @@ MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
 
 TOPIC = "mazenet/home/garage/door_state"
 
-apprise_obj = apprise.Apprise()
-apprise_obj.add(APPRISE_URL)
+apobj = apprise.Apprise()
+apobj.add(APPRISE_URL)
 
 logger = logging.getLogger(__name__)
 
@@ -54,17 +56,17 @@ def parse_influxdb_line_protocol(line):
         return None, None, None, None
 
 
-def send_telegram_message(message):
-    if not apprise_obj.notify(body=message):
-        logger.error("Failed to send Telegram alert.")
+async def send_telegram_message(message):
+    results = await apobj.async_notify(body=message)
+    if not results:
+        logger.error("failed to send notification.")
 
 
-# MQTT Callbacks
-def on_message(client, userdata, msg):
+async def process_sensor(msg: aiomqtt.Message):
     global sensors
 
     # topic = msg.topic
-    payload = msg.payload.decode()
+    payload = msg.payload
     logger.info(f"received {payload}")
 
     measurement, tags, fields, timestamp = parse_influxdb_line_protocol(payload)
@@ -84,7 +86,7 @@ def on_message(client, userdata, msg):
         logger.info(
             f"new sensor {sensor_location} with state {sensor_data['last_state']}"
         )
-        send_telegram_message(
+        await send_telegram_message(
             f"New sensor {sensor_location} with state {sensor_data['last_state']}"
         )
 
@@ -97,7 +99,7 @@ def on_message(client, userdata, msg):
             seconds=time.time() - sensor_data["last_heartbeat"]
         )
         logger.info(f"Sensor {sensor_location} back online after {lost_interval}")
-        send_telegram_message(
+        await send_telegram_message(
             f"Sensor {sensor_location} back online after {lost_interval}"
         )
 
@@ -108,30 +110,13 @@ def on_message(client, userdata, msg):
         logger.info(
             f"Sensor {sensor_location} state changed to {sensor_data['last_state']}!"
         )
-        send_telegram_message(
+        await send_telegram_message(
             f"Sensor {sensor_location} state changed to {sensor_data['last_state']}!"
         )
 
 
-def main():
-    logging.basicConfig(
-        level=logging.WARNING,
-        format="%(asctime)s; %(name)s; %(levelname)s; %(message)s",
-        datefmt="%Y-%m-%dT%H:%M:%S%z",
-    )
-    logger.setLevel(logging.INFO)
-    logger.info(f"starting mqtt-telegram on {TOPIC}")
-    # MQTT Connection Setup
-    client = mqtt.Client()
-    client.on_message = on_message
-    client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
-    client.tls_set()
-    client.connect(MQTT_HOSTNAME, int(MQTT_PORT))
-    client.subscribe([(TOPIC, 0)])
-
-    # Run Loop with Heartbeat Check
+async def check_heartbeat():
     while True:
-        client.loop(0.1)  # Process MQTT messages
         current_time = time.time()
 
         # Check each sensor for heartbeat timeout
@@ -141,16 +126,51 @@ def main():
                 and current_time - sensor_data["last_heartbeat"] > heartbeat_lost_delay
             ):
                 logger.warning(
-                    f"Lost sensor {location} last seen {heartbeat_lost_delay} seconds ago"
+                    f"lost sensor {location} last seen {heartbeat_lost_delay} seconds ago"
                 )
-                send_telegram_message(
+                await send_telegram_message(
                     f"Lost sensor {location} last seen {heartbeat_lost_delay} seconds ago"
                 )
                 sensor_data["heartbeat_lost"] = (
                     True  # Set flag to avoid repeated alerts
                 )
 
-        time.sleep(1)
+        await asyncio.sleep(1)
+
+
+async def main_async():
+    logging.basicConfig(
+        level=logging.WARNING,
+        format="%(asctime)s; %(name)s; %(levelname)s; %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S%z",
+    )
+    logger.setLevel(logging.INFO)
+    logger.info(f"starting mqtt-telegram on {TOPIC}")
+
+    asyncio.create_task(check_heartbeat())
+
+    interval = 5
+    client = aiomqtt.Client(
+        hostname=MQTT_HOSTNAME,
+        port=int(MQTT_PORT),
+        username=MQTT_USERNAME,
+        password=MQTT_PASSWORD,
+        tls_context=ssl.create_default_context(),
+    )
+    while True:
+        try:
+            async with client:
+                await client.subscribe(TOPIC)
+                async for message in client.messages:
+                    if message.topic.matches(TOPIC):
+                        await process_sensor(message)
+        except aiomqtt.MqttError:
+            logger.exception(f"connection lost; reconnecting in {interval} seconds ...")
+            await asyncio.sleep(interval)
+
+
+def main():
+    asyncio.run(main_async())
 
 
 if __name__ == "__main__":
