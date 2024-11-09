@@ -11,7 +11,8 @@ import aiomqtt
 import apprise
 from dotenv import load_dotenv
 
-version = importlib.metadata.version("mqtt-notif")
+package_name = __package__ or "mqtt-notif"
+__version__ = importlib.metadata.version(__package__ or "mqtt-notif")
 
 
 load_dotenv()
@@ -149,7 +150,7 @@ async def main_async():
         datefmt="%Y-%m-%dT%H:%M:%S%z",
     )
     logger.setLevel(logging.INFO)
-    logger.info(f"starting mqtt-telegram v{version} on {TOPIC}")
+    logger.info(f"starting {package_name} v{__version__} on {TOPIC}")
 
     asyncio.create_task(check_heartbeat())
 
