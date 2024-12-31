@@ -107,6 +107,16 @@ async def process_sensor(msg: aiomqtt.Message):
         await send_telegram_message(
             f"Sensor {sensor_location} back online after {lost_interval}"
         )
+        # Force state update on reconnection
+        current_state = int(fields.get("state", 0))
+        if current_state != sensor_data["last_state"]:
+            logger.info(
+                f"Sensor {sensor_location} state changed while offline from {sensor_data['last_state']} to {current_state}"
+            )
+            await send_telegram_message(
+                f"Sensor {sensor_location} state changed while offline from {sensor_data['last_state']} to {current_state}"
+            )
+        sensor_data["last_state"] = current_state
 
     # Update last heartbeat and state if changed
     sensor_data["last_heartbeat"] = time.time()
